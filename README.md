@@ -12,7 +12,9 @@ QuantForge is an advanced quantitative trading research platform and backtesting
 
 ## Demo
 
-![QuantForge Demo](demo.gif)
+<div align="center">
+  ![QuantForge Demo](demo.gif)
+</div>
 
 ## Getting Started
 
