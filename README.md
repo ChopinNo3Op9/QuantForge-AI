@@ -10,6 +10,10 @@ QuantForge is an advanced quantitative trading research platform and backtesting
 - **Real-time Data**: Integration with Yahoo Finance to pull historical stock data.
 - **Responsive UI**: A sleek, modern dashboard built with React and Tailwind CSS.
 
+## Demo
+
+![QuantForge Demo](demo.gif)
+
 ## Getting Started
 
 ### Prerequisites
