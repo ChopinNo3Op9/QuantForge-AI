@@ -1,11 +1,16 @@
 import { useState } from 'react';
-import { Settings, Play, Database, DollarSign, SlidersHorizontal, Cpu } from 'lucide-react';
+import { Settings, Play, Database, DollarSign, SlidersHorizontal, Cpu, Calendar } from 'lucide-react';
+import { subWeeks, subMonths, subYears, startOfYear, format } from 'date-fns';
 import { cn } from '../lib/utils';
 
 export function Sidebar({ onRunBacktest }: { onRunBacktest: (config: any) => void }) {
   const [ticker, setTicker] = useState('SPY');
   const [strategyName, setStrategyName] = useState('Trend Following');
-  const [dateRange, setDateRange] = useState('Last 5 Years');
+  
+  const today = new Date();
+  const [startDate, setStartDate] = useState(format(subYears(today, 5), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(today, 'yyyy-MM-dd'));
+  
   const [initialCapital, setInitialCapital] = useState(100000);
   const [fastSma, setFastSma] = useState(50);
   const [slowSma, setSlowSma] = useState(200);
@@ -14,11 +19,26 @@ export function Sidebar({ onRunBacktest }: { onRunBacktest: (config: any) => voi
     onRunBacktest({
       ticker,
       strategyName,
-      dateRange,
+      startDate,
+      endDate,
       initialCapital,
       fastSma,
       slowSma
     });
+  };
+
+  const setQuickRange = (range: string) => {
+    const end = new Date();
+    setEndDate(format(end, 'yyyy-MM-dd'));
+    
+    switch (range) {
+      case '1W': setStartDate(format(subWeeks(end, 1), 'yyyy-MM-dd')); break;
+      case '1M': setStartDate(format(subMonths(end, 1), 'yyyy-MM-dd')); break;
+      case '3M': setStartDate(format(subMonths(end, 3), 'yyyy-MM-dd')); break;
+      case '1Y': setStartDate(format(subYears(end, 1), 'yyyy-MM-dd')); break;
+      case '5Y': setStartDate(format(subYears(end, 5), 'yyyy-MM-dd')); break;
+      case 'YTD': setStartDate(format(startOfYear(end), 'yyyy-MM-dd')); break;
+    }
   };
 
   return (
@@ -63,17 +83,35 @@ export function Sidebar({ onRunBacktest }: { onRunBacktest: (config: any) => voi
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs text-[#c9d1d9] font-medium">Date Range</label>
-            <select 
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#58a6ff] transition-all appearance-none"
-            >
-              <option>Last 10 Years</option>
-              <option>Last 5 Years</option>
-              <option>Year to Date</option>
-              <option>Custom Range...</option>
-            </select>
+            <label className="text-xs text-[#c9d1d9] font-medium flex justify-between items-center">
+              Date Range
+              <Calendar className="w-3.5 h-3.5 text-[#8b949e]" />
+            </label>
+            <div className="grid grid-cols-3 gap-1 mb-2">
+              {['1W', '1M', '3M', '1Y', '5Y', 'YTD'].map(r => (
+                <button 
+                  key={r}
+                  onClick={() => setQuickRange(r)} 
+                  className="text-[10px] bg-[#0d1117] border border-[#30363d] rounded py-1 text-[#c9d1d9] hover:bg-[#21262d] transition-colors"
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex space-x-2">
+              <input 
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-1/2 bg-[#0d1117] border border-[#30363d] rounded-md px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#58a6ff] transition-all"
+              />
+              <input 
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-1/2 bg-[#0d1117] border border-[#30363d] rounded-md px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#58a6ff] transition-all"
+              />
+            </div>
           </div>
         </div>
 

@@ -1,8 +1,9 @@
-import { addMonths, format } from 'date-fns';
+import { addMonths, format, differenceInMonths, differenceInDays, addDays } from 'date-fns';
 
 export interface BacktestConfig {
   ticker: string;
-  dateRange: string;
+  startDate: string;
+  endDate: string;
   initialCapital: number;
   fastSma: number;
   slowSma: number;
@@ -28,65 +29,168 @@ export interface BacktestResult {
   };
 }
 
-export function simulateBacktest(config: BacktestConfig): BacktestResult {
+export async function simulateBacktest(config: BacktestConfig): Promise<BacktestResult> {
+  const { ticker, startDate, endDate, initialCapital, fastSma, slowSma, strategyName } = config;
+  
+  let historicalData: any[] = [];
+  try {
+    const res = await fetch(`/api/market-data?ticker=${ticker}&startDate=${startDate}&endDate=${endDate}`);
+    if (res.ok) {
+      historicalData = await res.json();
+    }
+  } catch (error) {
+    console.error("Failed to fetch market data", error);
+  }
+
   // Randomness seeded by config parameters so it looks deterministic for the same params
-  let seed = config.fastSma + config.slowSma + config.initialCapital + config.ticker.charCodeAt(0);
+  let seed = fastSma + slowSma + initialCapital + ticker.charCodeAt(0);
   const random = () => {
     let x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
   };
 
-  const monthsCount = config.dateRange === 'Last 10 Years' ? 120 : config.dateRange === 'Last 5 Years' ? 60 : 12;
+  const start = new Date(startDate || '2019-01-01');
+  const end = new Date(endDate || new Date());
+  
+  const daysDiff = Math.max(1, differenceInDays(end, start));
+  const monthsDiff = Math.max(1, differenceInMonths(end, start));
+  
+  // Decide step size based on range
+  const isDaily = daysDiff <= 90;
+  const isWeekly = daysDiff > 90 && daysDiff <= 365;
   
   const performanceData = [];
-  let strategyEquity = config.initialCapital;
-  let benchmarkEquity = config.initialCapital;
+  let strategyEquity = initialCapital;
+  let benchmarkEquity = initialCapital;
   let peakStrategyEquity = strategyEquity;
   
-  // Drift and vol based on strategy
-  let baseDrift = config.strategyName === 'Mean Reversion' ? 0.005 : 0.008;
-  let baseVol = config.strategyName === 'Mean Reversion' ? 0.02 : 0.03;
-  
-  // Adjust based on SMA
-  if (config.fastSma < 30) baseVol += 0.01;
-  if (config.slowSma > 200) baseDrift -= 0.001;
-
   let currentDrawdown = 0;
   let maxDrawdown = 0;
-  
-  const startYear = 2024 - (monthsCount / 12);
-  let currentDate = new Date(`${startYear}-01-01`);
 
-  for (let i = 0; i < monthsCount; i++) {
-    const stratReturn = baseDrift + (random() - 0.5) * baseVol;
-    const benchReturn = 0.006 + (random() - 0.5) * 0.025;
+  if (historicalData && historicalData.length > 0) {
+    // Process real data
+    // We will do a simple SMA crossover logic if it's Trend Following
+    // For simplicity, we just use close prices
     
-    strategyEquity *= (1 + stratReturn);
-    benchmarkEquity *= (1 + benchReturn);
+    let fastSmaArr: number[] = [];
+    let slowSmaArr: number[] = [];
+    let lastPosition = 0; // 0 = flat, 1 = long
     
-    if (strategyEquity > peakStrategyEquity) {
-      peakStrategyEquity = strategyEquity;
+    // Filter out invalid data
+    historicalData = historicalData.filter(d => d.close != null);
+
+    let basePrice = historicalData[0].close;
+
+    for (let i = 0; i < historicalData.length; i++) {
+      const bar = historicalData[i];
+      const close = bar.close;
+      const date = new Date(bar.date);
+
+      // Calc SMA
+      let currentFast = close;
+      let currentSlow = close;
+
+      if (i >= fastSma - 1) {
+        const slice = historicalData.slice(i - fastSma + 1, i + 1);
+        currentFast = slice.reduce((sum, b) => sum + b.close, 0) / fastSma;
+      }
+      if (i >= slowSma - 1) {
+        const slice = historicalData.slice(i - slowSma + 1, i + 1);
+        currentSlow = slice.reduce((sum, b) => sum + b.close, 0) / slowSma;
+      }
+
+      fastSmaArr.push(currentFast);
+      slowSmaArr.push(currentSlow);
+
+      // Simple signal
+      let signal = lastPosition;
+      if (strategyName === 'Trend Following' && i >= slowSma) {
+         if (currentFast > currentSlow) signal = 1;
+         else signal = 0;
+      } else if (strategyName === 'Mean Reversion' && i >= fastSma) {
+         if (close < currentFast * 0.98) signal = 1;
+         else if (close > currentFast * 1.02) signal = 0;
+      }
+
+      // Calculate Returns
+      if (i > 0) {
+        const prevClose = historicalData[i-1].close;
+        const dailyRet = (close - prevClose) / prevClose;
+        
+        benchmarkEquity *= (1 + dailyRet);
+        if (lastPosition === 1) {
+           strategyEquity *= (1 + dailyRet);
+        }
+      }
+      
+      lastPosition = signal;
+
+      if (strategyEquity > peakStrategyEquity) {
+        peakStrategyEquity = strategyEquity;
+      }
+      
+      currentDrawdown = ((strategyEquity - peakStrategyEquity) / peakStrategyEquity) * 100;
+      if (currentDrawdown < maxDrawdown) {
+        maxDrawdown = currentDrawdown;
+      }
+
+      performanceData.push({
+        date: isDaily ? format(date, 'MMM dd') : (isWeekly ? format(date, 'MMM dd yyyy') : format(date, 'yyyy-MM')),
+        rawDate: date.toISOString(), // useful for apexcharts
+        strategy: Math.round(strategyEquity),
+        benchmark: Math.round(benchmarkEquity),
+        drawdown: Number(currentDrawdown.toFixed(2)),
+        close: bar.close,
+        high: bar.high,
+        low: bar.low,
+        open: bar.open
+      });
     }
+  } else {
+    // Fallback to random simulation if fetch fails
+    const stepsCount = isDaily ? daysDiff : (isWeekly ? Math.floor(daysDiff / 7) : monthsDiff);
     
-    currentDrawdown = ((strategyEquity - peakStrategyEquity) / peakStrategyEquity) * 100;
-    if (currentDrawdown < maxDrawdown) {
-      maxDrawdown = currentDrawdown;
+    const scale = isDaily ? 1/21 : (isWeekly ? 1/4 : 1);
+    let baseDrift = (strategyName === 'Mean Reversion' ? 0.005 : 0.008) * scale;
+    let baseVol = (strategyName === 'Mean Reversion' ? 0.02 : 0.03) * Math.sqrt(scale);
+    
+    if (fastSma < 30) baseVol += 0.01 * Math.sqrt(scale);
+    if (slowSma > 200) baseDrift -= 0.001 * scale;
+
+    let currentDate = new Date(start);
+
+    for (let i = 0; i <= stepsCount; i++) {
+      const stratReturn = baseDrift + (random() - 0.5) * baseVol;
+      const benchReturn = (0.006 * scale) + (random() - 0.5) * (0.025 * Math.sqrt(scale));
+      
+      strategyEquity *= (1 + stratReturn);
+      benchmarkEquity *= (1 + benchReturn);
+      
+      if (strategyEquity > peakStrategyEquity) {
+        peakStrategyEquity = strategyEquity;
+      }
+      
+      currentDrawdown = ((strategyEquity - peakStrategyEquity) / peakStrategyEquity) * 100;
+      if (currentDrawdown < maxDrawdown) {
+        maxDrawdown = currentDrawdown;
+      }
+
+      performanceData.push({
+        date: isDaily ? format(currentDate, 'MMM dd') : (isWeekly ? format(currentDate, 'MMM dd yyyy') : format(currentDate, 'yyyy-MM')),
+        strategy: Math.round(strategyEquity),
+        benchmark: Math.round(benchmarkEquity),
+        drawdown: Number(currentDrawdown.toFixed(2))
+      });
+
+      if (isDaily) currentDate = addDays(currentDate, 1);
+      else if (isWeekly) currentDate = addDays(currentDate, 7);
+      else currentDate = addMonths(currentDate, 1);
     }
-
-    performanceData.push({
-      date: format(currentDate, 'yyyy-MM'),
-      strategy: Math.round(strategyEquity),
-      benchmark: Math.round(benchmarkEquity),
-      drawdown: Number(currentDrawdown.toFixed(2))
-    });
-
-    currentDate = addMonths(currentDate, 1);
   }
 
-  const totReturn = ((strategyEquity - config.initialCapital) / config.initialCapital) * 100;
-  const bmkReturn = ((benchmarkEquity - config.initialCapital) / config.initialCapital) * 100;
+  const totReturn = ((strategyEquity - initialCapital) / initialCapital) * 100;
+  const bmkReturn = ((benchmarkEquity - initialCapital) / initialCapital) * 100;
 
-  // Mock Trade Distribution
   const trades = Math.floor(random() * 200) + 50;
   const winRateVal = 40 + random() * 20;
 

@@ -1,14 +1,66 @@
 import { TrendingUp, Activity, BarChart3, PieChart, Info, Download } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Line, ComposedChart, BarChart, Bar, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Line, ComposedChart, BarChart as RechartsBarChart, Bar, Cell } from 'recharts';
+import Chart from 'react-apexcharts';
 import { BacktestResult } from '../lib/backtestUtils';
 
 export function Dashboard({ data }: { data: BacktestResult }) {
   if (!data) return null;
   const { metrics, performanceData, heatmapData, tradeDistribution } = data;
 
+  const hasCandles = performanceData.length > 0 && performanceData[0].open !== undefined;
+  
+  const candlestickSeries = hasCandles ? [{
+    data: performanceData.map(d => ({
+      x: d.rawDate ? new Date(d.rawDate).getTime() : new Date(d.date).getTime(),
+      y: [d.open, d.high, d.low, d.close]
+    }))
+  }] : [];
+
+  const candlestickOptions: ApexCharts.ApexOptions = {
+    chart: {
+      type: 'candlestick',
+      foreColor: '#8b949e',
+      toolbar: { show: false },
+      animations: { enabled: false },
+      background: 'transparent'
+    },
+    tooltip: {
+      theme: 'dark',
+    },
+    xaxis: {
+      type: 'datetime',
+      axisBorder: { color: '#30363d' },
+      axisTicks: { color: '#30363d' },
+    },
+    yaxis: {
+      tooltip: { enabled: true },
+      labels: { formatter: (val) => val.toFixed(2) }
+    },
+    grid: {
+      borderColor: '#30363d',
+      strokeDashArray: 3
+    },
+    plotOptions: {
+      candlestick: {
+        colors: {
+          upward: '#00FFAA',
+          downward: '#f85149'
+        }
+      }
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       
+      {/* Simulation Warning */}
+      {!hasCandles && (
+        <div className="bg-[#1f6feb]/10 border border-[#1f6feb]/30 rounded-lg p-3 flex items-center text-[#58a6ff] text-sm">
+          <Info className="w-4 h-4 mr-2 flex-shrink-0" />
+          <p><strong>Simulation Mode:</strong> The backtest results are currently simulated. Failed to fetch real market data.</p>
+        </div>
+      )}
+
       {/* Top Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard title="Total Return" value={metrics.totalReturn} subtext={`vs Benchmark: ${metrics.benchmarkReturn}`} icon={TrendingUp} color="text-[#00FFAA]" />
@@ -53,7 +105,7 @@ export function Dashboard({ data }: { data: BacktestResult }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
-              <XAxis dataKey="date" stroke="#8b949e" tick={{fill: '#8b949e', fontSize: 12}} tickLine={false} axisLine={false} />
+              <XAxis dataKey="date" stroke="#8b949e" tick={{fill: '#8b949e', fontSize: 12}} tickLine={false} axisLine={false} minTickGap={50} />
               <YAxis yAxisId="left" stroke="#8b949e" tick={{fill: '#8b949e', fontSize: 12}} tickLine={false} axisLine={false} domain={['dataMin - 1000', 'auto']} />
               <YAxis yAxisId="right" orientation="right" stroke="#f85149" tick={{fill: '#f85149', fontSize: 12}} tickLine={false} axisLine={false} />
               
@@ -70,13 +122,27 @@ export function Dashboard({ data }: { data: BacktestResult }) {
         </div>
       </div>
 
+      {/* Asset Price Candlesticks */}
+      {hasCandles && (
+        <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-white flex items-center">
+              Asset Price History (Real Data)
+            </h3>
+          </div>
+          <div className="h-[400px]">
+             <Chart options={candlestickOptions} series={candlestickSeries} type="candlestick" height="100%" />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Trade Distribution */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 shadow-sm">
           <h3 className="text-lg font-bold text-white mb-4">Trade Distribution</h3>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={tradeDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <RechartsBarChart data={tradeDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
                 <XAxis dataKey="range" stroke="#8b949e" tick={{fill: '#8b949e', fontSize: 11}} tickLine={false} axisLine={false} />
                 <YAxis stroke="#8b949e" tick={{fill: '#8b949e', fontSize: 11}} tickLine={false} axisLine={false} />
@@ -89,7 +155,7 @@ export function Dashboard({ data }: { data: BacktestResult }) {
                     <Cell key={`cell-${index}`} fill={entry.range.includes('-') ? '#f85149' : '#00FFAA'} opacity={0.8} />
                   ))}
                 </Bar>
-              </BarChart>
+              </RechartsBarChart>
             </ResponsiveContainer>
           </div>
         </div>

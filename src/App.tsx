@@ -39,10 +39,16 @@ export default function App() {
     if (!initialized.current) {
       initialized.current = true;
       sendMessage('START_CONVERSATION', true);
+      
+      const end = new Date();
+      const start = new Date();
+      start.setFullYear(end.getFullYear() - 5);
+      
       handleRunBacktest({
         ticker: 'SPY',
         strategyName: 'Trend Following',
-        dateRange: 'Last 5 Years',
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
         initialCapital: 100000,
         fastSma: 50,
         slowSma: 200
@@ -133,15 +139,17 @@ export default function App() {
     }
   };
 
-  const handleRunBacktest = (config: BacktestConfig) => {
+  const handleRunBacktest = async (config: BacktestConfig) => {
     setIsBacktesting(true);
     setActiveTab('analysis'); // Force switch to analysis tab
-    // Simulate loading time
-    setTimeout(() => {
-      const data = simulateBacktest(config);
+    try {
+      const data = await simulateBacktest(config);
       setBacktestData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
       setIsBacktesting(false);
-    }, 800);
+    }
   };
 
   return (

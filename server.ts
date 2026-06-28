@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
 
 const SYSTEM_INSTRUCTION = `You are **QuantForge AI**, an expert quantitative trading researcher, backtester, and systematic trading platform running inside Google Gemini AI Studio.
 
@@ -129,6 +131,25 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: "50mb" }));
+
+  app.get("/api/market-data", async (req, res) => {
+    try {
+      const ticker = req.query.ticker as string;
+      const period1 = req.query.startDate as string;
+      const period2 = req.query.endDate as string;
+      
+      if (!ticker || !period1 || !period2) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const queryOptions = { period1, period2, interval: "1d" as any };
+      const result = await yahooFinance.historical(ticker, queryOptions);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Market Data Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch market data" });
+    }
+  });
 
   app.post("/api/chat", async (req, res) => {
     try {
