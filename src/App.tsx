@@ -82,7 +82,14 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        let errorMsg = 'Network response was not ok';
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMsg = errorData.error;
+          }
+        } catch (e) {}
+        throw new Error(errorMsg);
       }
 
       if (response.body) {
@@ -121,11 +128,11 @@ export default function App() {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       setMessages((prev) => [
         ...prev, 
-        { role: 'model', parts: [{ text: '⚠️ Error connecting to server. Please try again.' }] }
+        { role: 'model', parts: [{ text: `⚠️ Error: ${error.message || 'Could not connect to server. Please try again.'}` }] }
       ]);
     } finally {
       setIsLoading(false);

@@ -169,7 +169,7 @@ async function startServer() {
       contents.push({ role: "user", parts: [{ text: currentMessage }] });
 
       const responseStream = await ai.models.generateContentStream({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
