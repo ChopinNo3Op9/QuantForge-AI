@@ -1,5 +1,5 @@
 import { TrendingUp, Activity, BarChart3, PieChart, Info, Download } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Line, ComposedChart, BarChart as RechartsBarChart, Bar, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Line, ComposedChart, BarChart as RechartsBarChart, Bar, Cell, Brush } from 'recharts';
 import Chart from 'react-apexcharts';
 import { BacktestResult } from '../lib/backtestUtils';
 
@@ -19,8 +19,21 @@ export function Dashboard({ data }: { data: BacktestResult }) {
   const candlestickOptions: ApexCharts.ApexOptions = {
     chart: {
       type: 'candlestick',
+      id: 'candles',
       foreColor: '#8b949e',
-      toolbar: { show: false },
+      toolbar: { 
+        show: true,
+        tools: {
+          download: false,
+          selection: true,
+          zoom: true,
+          zoomin: true,
+          zoomout: true,
+          pan: true,
+          reset: true
+        },
+        autoSelected: 'pan' 
+      },
       animations: { enabled: false },
       background: 'transparent'
     },
@@ -50,6 +63,73 @@ export function Dashboard({ data }: { data: BacktestResult }) {
     }
   };
 
+  const brushSeries = hasCandles ? [{
+    name: 'Close',
+    data: performanceData.map(d => ({
+      x: d.rawDate ? new Date(d.rawDate).getTime() : new Date(d.date).getTime(),
+      y: d.close
+    }))
+  }] : [];
+
+  const minDate = hasCandles && brushSeries[0].data.length > 0 ? brushSeries[0].data[Math.max(0, brushSeries[0].data.length - 60)].x : undefined;
+  const maxDate = hasCandles && brushSeries[0].data.length > 0 ? brushSeries[0].data[brushSeries[0].data.length - 1].x : undefined;
+
+  const brushOptions: ApexCharts.ApexOptions = {
+    chart: {
+      type: 'area',
+      id: 'brush',
+      brush: {
+        target: 'candles',
+        enabled: true
+      },
+      selection: {
+        enabled: true,
+        xaxis: {
+          min: minDate,
+          max: maxDate
+        },
+        fill: {
+          color: '#30363d',
+          opacity: 0.4
+        },
+        stroke: {
+          width: 1,
+          dashArray: 3,
+          color: '#8b949e',
+          opacity: 0.4
+        }
+      },
+      foreColor: '#8b949e',
+      animations: { enabled: false },
+      background: 'transparent',
+      toolbar: { show: false }
+    },
+    colors: ['#00FFAA'],
+    fill: {
+      type: 'gradient',
+      gradient: {
+        opacityFrom: 0.4,
+        opacityTo: 0.1,
+      }
+    },
+    xaxis: {
+      type: 'datetime',
+      axisBorder: { color: '#30363d' },
+      axisTicks: { color: '#30363d' },
+      tooltip: { enabled: false }
+    },
+    yaxis: {
+      tickAmount: 2,
+      labels: { formatter: (val) => val.toFixed(0) }
+    },
+    grid: {
+      borderColor: '#30363d',
+      strokeDashArray: 3
+    },
+    dataLabels: { enabled: false },
+    stroke: { width: 1 }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       
@@ -62,18 +142,15 @@ export function Dashboard({ data }: { data: BacktestResult }) {
       )}
 
       {/* Top Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard title="Total Return" value={metrics.totalReturn} subtext={`vs Benchmark: ${metrics.benchmarkReturn}`} icon={TrendingUp} color="text-[#00FFAA]" />
-        <MetricCard title="Sharpe Ratio" value={metrics.sharpeRatio} subtext="Annualized (Rf = 2%)" icon={Activity} color="text-[#58a6ff]" />
-        <MetricCard title="Max Drawdown" value={metrics.maxDrawdown} subtext={`Calmar Ratio: ${metrics.calmarRatio}`} icon={BarChart3} color="text-[#f85149]" />
-        <MetricCard title="Win Rate" value={metrics.winRate} subtext={`Profit Factor: ${metrics.profitFactor}`} icon={PieChart} color="text-[#a371f7]" />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        <MetricCard title="Sortino Ratio" value={metrics.sortinoRatio} subtext="Downside deviation" color="text-[#c9d1d9]" compact />
-        <MetricCard title="Volatility" value={metrics.volatility} subtext="Annualized std dev" color="text-[#c9d1d9]" compact />
-        <MetricCard title="Total Trades" value={metrics.totalTrades} subtext="Avg duration: 12 days" color="text-[#c9d1d9]" compact />
-        <MetricCard title="Expectancy" value={metrics.expectancy} subtext="Per trade average" color="text-[#c9d1d9]" compact />
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+        <MetricCard title="Total Return" value={metrics.totalReturn} subtext={`vs Bmk: ${metrics.benchmarkReturn}`} icon={TrendingUp} color="text-[#00FFAA]" compact />
+        <MetricCard title="Sharpe Ratio" value={metrics.sharpeRatio} subtext="Ann. (Rf = 2%)" icon={Activity} color="text-[#58a6ff]" compact />
+        <MetricCard title="Drawdown" value={metrics.maxDrawdown} subtext={`Calmar: ${metrics.calmarRatio}`} icon={BarChart3} color="text-[#f85149]" compact />
+        <MetricCard title="Win Rate" value={metrics.winRate} subtext={`PF: ${metrics.profitFactor}`} icon={PieChart} color="text-[#a371f7]" compact />
+        <MetricCard title="Sortino" value={metrics.sortinoRatio} subtext="Downside dev" color="text-[#c9d1d9]" compact />
+        <MetricCard title="Volatility" value={metrics.volatility} subtext="Ann. std dev" color="text-[#c9d1d9]" compact />
+        <MetricCard title="Trades" value={metrics.totalTrades} subtext="Avg dur: 12d" color="text-[#c9d1d9]" compact />
+        <MetricCard title="Expectancy" value={metrics.expectancy} subtext="Per trade avg" color="text-[#c9d1d9]" compact />
       </div>
 
       {/* Main Charts */}
@@ -117,6 +194,8 @@ export function Dashboard({ data }: { data: BacktestResult }) {
               <Area yAxisId="left" type="monotone" dataKey="strategy" name="Strategy" stroke="#00FFAA" strokeWidth={2} fillOpacity={1} fill="url(#colorStrategy)" />
               <Line yAxisId="left" type="monotone" dataKey="benchmark" name="Benchmark" stroke="#8b949e" strokeWidth={2} dot={false} strokeDasharray="5 5" />
               <Area yAxisId="right" type="step" dataKey="drawdown" name="Drawdown (%)" stroke="#f85149" strokeWidth={1} fill="url(#colorDrawdown)" />
+              
+              <Brush dataKey="date" height={30} stroke="#8b949e" fill="#161b22" tickFormatter={() => ''} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -130,8 +209,11 @@ export function Dashboard({ data }: { data: BacktestResult }) {
               Asset Price History (Real Data)
             </h3>
           </div>
-          <div className="h-[400px]">
+          <div className="h-[350px]">
              <Chart options={candlestickOptions} series={candlestickSeries} type="candlestick" height="100%" />
+          </div>
+          <div className="h-[100px] mt-2">
+            <Chart options={brushOptions} series={brushSeries} type="area" height="100%" />
           </div>
         </div>
       )}
@@ -196,10 +278,16 @@ export function Dashboard({ data }: { data: BacktestResult }) {
 function MetricCard({ title, value, subtext, icon: Icon, color, compact }: any) {
   if (compact) {
     return (
-      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4 shadow-sm flex flex-col">
-        <h3 className="text-xs font-medium text-[#8b949e] mb-1">{title}</h3>
-        <div className={`text-lg font-bold font-mono ${color || 'text-white'}`}>{value}</div>
-        <p className="text-[10px] text-[#8b949e] mt-1">{subtext}</p>
+      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-3 shadow-sm flex flex-col relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-[2px] h-full bg-current opacity-50 group-hover:opacity-100 transition-opacity" style={{ color: color ? 'currentColor' : '#30363d' }}>
+          <div className={`w-full h-full ${color}`} />
+        </div>
+        <div className="flex items-center justify-between mb-1 pl-1">
+          <h3 className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider truncate mr-1" title={title}>{title}</h3>
+          {Icon && <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${color}`} />}
+        </div>
+        <div className={`text-lg font-bold font-mono pl-1 ${color || 'text-white'}`}>{value}</div>
+        <p className="text-[10px] text-[#8b949e] mt-1 pl-1 truncate" title={subtext}>{subtext}</p>
       </div>
     );
   }

@@ -4,6 +4,10 @@ import { subWeeks, subMonths, subYears, startOfYear, format } from 'date-fns';
 import { cn } from '../lib/utils';
 
 export function Sidebar({ onRunBacktest }: { onRunBacktest: (config: any) => void }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const isOpen = isHovered || isFocused;
+
   const [ticker, setTicker] = useState('SPY');
   const [strategyName, setStrategyName] = useState('Trend Following');
   
@@ -42,17 +46,27 @@ export function Sidebar({ onRunBacktest }: { onRunBacktest: (config: any) => voi
   };
 
   return (
-    <div className="w-64 bg-[#161b22] border-r border-[#30363d] flex flex-col h-full overflow-y-auto z-10 sticky top-0 hide-scrollbar">
-      <div className="p-4 border-b border-[#30363d] flex items-center space-x-2">
-        <Cpu className="w-6 h-6 text-[#00FFAA]" />
-        <div>
-          <h1 className="text-lg font-bold text-white tracking-tight leading-tight">QuantForge</h1>
-          <p className="text-[10px] text-[#8b949e] uppercase tracking-wider font-semibold">Research Platform</p>
+    <div 
+      className={cn(
+        "bg-[#161b22] border-r border-[#30363d] flex flex-col h-full overflow-y-auto overflow-x-hidden z-10 sticky top-0 hide-scrollbar transition-all duration-300",
+        isOpen ? "w-64" : "w-[60px]"
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocusCapture={() => setIsFocused(true)}
+      onBlurCapture={() => setIsFocused(false)}
+    >
+      <div className="flex-1 flex flex-col h-full w-full">
+        <div className="p-4 border-b border-[#30363d] flex items-center space-x-2 h-[60px] flex-shrink-0 w-64">
+          <Cpu className="w-6 h-6 text-[#00FFAA] flex-shrink-0 ml-[1px]" />
+          <div className={cn("transition-opacity duration-300 whitespace-nowrap", isOpen ? "opacity-100" : "opacity-0")}>
+            <h1 className="text-lg font-bold text-white tracking-tight leading-tight">QuantForge</h1>
+            <p className="text-[10px] text-[#8b949e] uppercase tracking-wider font-semibold">Research Platform</p>
+          </div>
         </div>
-      </div>
 
-      <div className="flex-1 p-4 space-y-6">
-        <div className="space-y-3">
+        <div className={cn("flex-1 p-4 space-y-6 transition-opacity duration-300 w-64", isOpen ? "opacity-100" : "opacity-0 pointer-events-none")}>
+          <div className="space-y-3">
           <h3 className="text-xs font-bold text-[#8b949e] uppercase tracking-wider flex items-center">
             <Database className="w-3.5 h-3.5 mr-1.5" />
             Data & Strategy
@@ -179,14 +193,21 @@ export function Sidebar({ onRunBacktest }: { onRunBacktest: (config: any) => voi
         </div>
       </div>
 
-      <div className="p-4 border-t border-[#30363d]">
+      <div className={cn("border-t border-[#30363d] flex justify-center transition-all duration-300", isOpen ? "p-4" : "py-4 px-0")}>
         <button 
           onClick={handleRun}
-          className="w-full bg-[#238636] hover:bg-[#2ea043] text-white rounded-md py-2 px-4 text-sm font-semibold shadow-sm flex items-center justify-center transition-colors"
+          className={cn(
+            "bg-[#238636] hover:bg-[#2ea043] text-white rounded-md flex items-center justify-center transition-all duration-300 shadow-sm overflow-hidden",
+            isOpen ? "w-full py-2 px-4 text-sm font-semibold" : "w-10 h-10 p-0 rounded-full"
+          )}
+          title="Run Backtest"
         >
-          <Play className="w-4 h-4 mr-2" fill="currentColor" />
-          Run Backtest
+          <Play className={cn("fill-current flex-shrink-0", isOpen ? "w-4 h-4 mr-2" : "w-5 h-5 ml-1")} />
+          <span className={cn("whitespace-nowrap transition-opacity duration-300", isOpen ? "opacity-100" : "opacity-0 w-0")}>
+            Run Backtest
+          </span>
         </button>
+      </div>
       </div>
     </div>
   );
