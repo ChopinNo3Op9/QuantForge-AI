@@ -1,0 +1,6 @@
+{
+  "name": "QuantForge AI",
+  "description": "An expert quantitative trading researcher and systematic trading platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
