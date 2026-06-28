@@ -14,7 +14,8 @@ QuantForge is an advanced quantitative trading research platform and backtesting
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/ChopinNo3Op9/QuantForge-AI/main/demo.gif" 
-       alt="QuantForge Demo">
+       alt="QuantForge Demo" 
+       width="100%">
 </div>
 
 ## Getting Started
